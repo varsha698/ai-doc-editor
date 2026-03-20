@@ -45,7 +45,7 @@ async def analyze(payload: AnalyzeRequest, background_tasks: BackgroundTasks) ->
     if cached and now - cached[1] < timedelta(seconds=_CACHE_TTL_SECONDS):
         return cached[0]
 
-    result = analyze_document(payload.text)
+    result = await analyze_document(payload.text)
     _analysis_cache[key] = (result, now)
     background_tasks.add_task(_background_embed, payload.document_id, payload.text)
     return result
@@ -53,4 +53,4 @@ async def analyze(payload: AnalyzeRequest, background_tasks: BackgroundTasks) ->
 
 @router.post("/chat")
 async def chat(payload: ChatRequest) -> dict:
-    return chat_edit(payload.message, payload.text, payload.command)
+    return await chat_edit(payload.message, payload.text, payload.command)

@@ -1,0 +1,7 @@
+Our platform helps teams write technical documentation quickly.
+We aim to provide clear language, accurate explanations, and consistent structure.
+
+The editor should identify grammar errors in real time and suggest concise alternatives.
+It should also preserve author voice while making wording more professional.
+
+When users ask for an outline, the assistant should produce a logical hierarchy with headings and bullet points.

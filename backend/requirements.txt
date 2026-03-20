@@ -2,8 +2,11 @@ fastapi
 uvicorn[standard]
 pydantic
 python-dotenv
-openai
 sentence-transformers
 chromadb
 sqlalchemy
 psycopg[binary]
+transformers
+datasets
+peft
+accelerate
