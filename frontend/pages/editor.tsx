@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import Editor from "@/components/Editor";
 import AIChatPanel from "@/components/AIChatPanel";
@@ -6,6 +6,7 @@ import SuggestionPanel from "@/components/SuggestionPanel";
 import { chatWithAI, Suggestion } from "@/services/api";
 import { useEditorAI } from "@/hooks/useEditorAI";
 import { useSuggestions } from "@/hooks/useSuggestions";
+import { useAIStream } from "@/hooks/useAIStream";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -18,6 +19,9 @@ export default function EditorPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const { analysis, isAnalyzing, queueAnalysis } = useEditorAI({ documentId });
   const { suggestions, setSuggestions, acceptSuggestion, rejectSuggestion } = useSuggestions();
+  const editorRef = useRef<import("@/components/Editor").EditorHandle | null>(null);
+  const assistantIndexRef = useRef<number>(-1);
+  const { streamChat, isStreaming } = useAIStream();
 
   function handleEditorChange(text: string) {
     setDocumentText(text);
@@ -25,10 +29,32 @@ export default function EditorPage() {
   }
 
   async function handleSend(message: string) {
-    setMessages((prev) => [...prev, { role: "user", content: message }]);
-    const reply = await chatWithAI({ document_id: documentId, message, text: documentText });
-    setMessages((prev) => [...prev, { role: "assistant", content: reply.reply }]);
-    setSuggestions(reply.suggestions);
+    if (isStreaming) return;
+    setMessages((prev) => {
+      assistantIndexRef.current = prev.length + 1;
+      return [
+        ...prev,
+        { role: "user", content: message },
+        { role: "assistant", content: "" },
+      ];
+    });
+
+    await streamChat(
+      { document_id: documentId, message, text: documentText, command: null },
+      {
+        onSuggestions: (incoming) => setSuggestions(incoming),
+        onToken: (token) => {
+          const idx = assistantIndexRef.current;
+          if (idx < 0) return;
+          setMessages((prev) => {
+            return prev.map((m, i) => {
+              if (i !== idx) return m;
+              return { ...m, content: m.content + token };
+            });
+          });
+        },
+      }
+    );
   }
 
   async function handleSlashCommand(command: string, text: string) {
@@ -46,8 +72,8 @@ export default function EditorPage() {
   }
 
   function handleAccept(s: Suggestion) {
-    // Simple replacement for MVP; in production use positional ranges and transactions.
-    setDocumentText((prev) => prev.replace(s.original_text, s.suggested_text));
+    const applied = editorRef.current?.applySuggestion(s) ?? false;
+    if (!applied) return;
     acceptSuggestion(s.id);
   }
 
@@ -55,7 +81,13 @@ export default function EditorPage() {
     <main className="grid h-full grid-cols-12 gap-4 p-4">
       <section className="col-span-8 rounded-lg border border-slate-200 bg-white p-4">
         <h1 className="mb-3 text-xl font-semibold">AI Document Editor</h1>
-        <Editor content={documentText} onChange={handleEditorChange} onSlashCommand={handleSlashCommand} />
+        <Editor
+          ref={editorRef}
+          content={documentText}
+          onChange={handleEditorChange}
+          onSlashCommand={handleSlashCommand}
+          suggestions={suggestions}
+        />
       </section>
 
       <aside className="col-span-4 space-y-4">

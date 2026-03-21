@@ -36,7 +36,8 @@ def local_suggestions(text: str) -> List[Dict]:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             original = match.group(0)
-            suggested = replacement if replacement else "(remove word)"
+            # For range-based edits the accepted replacement should be the actual text.
+            suggested = replacement
             suggestions.append(
                 {
                     "id": str(uuid.uuid4()),
@@ -44,6 +45,8 @@ def local_suggestions(text: str) -> List[Dict]:
                     "original_text": original,
                     "suggested_text": suggested,
                     "explanation": explanation,
+                    "start": match.start(),
+                    "end": match.end(),
                 }
             )
     return suggestions[:5]

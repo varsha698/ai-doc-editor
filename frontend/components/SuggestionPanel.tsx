@@ -18,7 +18,14 @@ export default function SuggestionPanel({ suggestions, onAccept, onReject }: Pro
           <p className="text-sm font-medium text-slate-900">{s.suggested_text}</p>
           <p className="mt-1 text-xs text-slate-500">{s.explanation}</p>
           <div className="mt-2 flex gap-2">
-            <button className="rounded bg-emerald-600 px-2 py-1 text-xs text-white" onClick={() => onAccept(s)}>
+            <button
+              className={`rounded px-2 py-1 text-xs text-white ${
+                s.start != null && s.end != null ? "bg-emerald-600" : "bg-emerald-300"
+              }`}
+              disabled={s.start == null || s.end == null}
+              title={s.start == null || s.end == null ? "Range missing (cannot apply as a transaction edit)" : "Apply edit"}
+              onClick={() => onAccept(s)}
+            >
               Accept
             </button>
             <button className="rounded bg-slate-200 px-2 py-1 text-xs text-slate-700" onClick={() => onReject(s.id)}>
