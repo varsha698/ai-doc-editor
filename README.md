@@ -1,13 +1,113 @@
+<div align="center">
+
 # AI Doc Editor
 
-Production-oriented scaffold for an AI-powered document editor using:
+### *A local-first writing studio where your documents meet real intelligence.*
 
-- Frontend: Next.js + React + TypeScript + Tailwind + Tiptap
-- Backend: FastAPI + Python
-- AI: Local Hugging Face Transformers (LLaMA 3 / Mistral) + sentence-transformers embeddings
-- Storage: PostgreSQL + vector DB-ready schema
+[![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Python](https://img.shields.io/badge/Python-3-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 
-## Run Frontend
+**No OpenAI lock-in.** Run **LLaMA 3**, **Mistral**, or **Mixtral** from disk, enrich answers with **RAG**, tighten prose with a **dedicated grammar engine**, and let the system **learn your voice**—all wired through a polished **Tiptap** editor.
+
+<br />
+
+[Features](#-what-makes-it-special) · [Architecture](#-how-it-fits-together) · [Quick start](#-quick-start) · [Configuration](#-configuration) · [API](#-api) · [Training](#-fine-tuning--evaluation) · [License](#-license)
+
+<br />
+
+</div>
+
+---
+
+## The story
+
+**AI Doc Editor** is built for people who want the *feel* of a modern doc tool and the *control* of a stack they own. You type in a rich editor; the backend analyzes structure, grammar, and style, retrieves relevant context from your own document chunks, and asks a **local** language model to suggest improvements, summaries, and chat-style edits—without shipping your draft to a third-party API.
+
+The frontend is a **Next.js** app with **Tailwind** styling and **ProseMirror (Tiptap)** for serious editing: suggestions carry **exact character ranges**, show up **inline**, and apply through **real transactions** so the document tree stays valid.
+
+The backend is **FastAPI**: fast iteration, automatic OpenAPI docs, streaming responses, and a **WebSocket** channel so the AI chat panel can update **token by token** while incremental suggestions land in the UI.
+
+---
+
+## What makes it special
+
+| Capability | What you get |
+|------------|----------------|
+| **Local LLM** | Hugging Face **Transformers** loads weights from disk; **PEFT / LoRA** adapters optional. Templates tuned for **LLaMA 3** and **Mistral-family** (including **Mixtral**) chat formats. |
+| **Model manager** | Switch active model via env or request hints; **semaphore-limited** generation so one machine doesn’t melt under load. |
+| **RAG** | **ChromaDB** stores chunk embeddings; retrieval runs **before** LLM prompts so answers stay grounded in *this* document. |
+| **Grammar engine** | **Separate from the LLM**: rules, spellcheck (**pyspellchecker**), readability (**textstat**), optional **LanguageTool**—structured issues with spans and suggestions. |
+| **Style engine** | Profiles sentence length, vocabulary, tone, and structure; **style constraints** prepended to prompts so the model tracks *your* voice. |
+| **Editor UX** | Range-based suggestions, highlights, accept/reject; WebSocket streaming for live chat. |
+| **Scale-minded** | Analysis/LLM caching patterns, **async embedding indexer** with **batched** embedding work for many documents. |
+| **Training & eval** | Instruction JSONL pipeline, **LoRA** training, validation scripts, and **benchmark** runners with ROUGE-style and latency metrics. |
+
+---
+
+## How it fits together
+
+```mermaid
+flowchart LR
+  subgraph Client["Browser — Next.js"]
+    E[Editor / Tiptap]
+    P[Panels — chat & suggestions]
+  end
+
+  subgraph API["FastAPI"]
+    R[Routes /ai/*]
+    AS[AI service]
+    GM[Model manager]
+    GS[Grammar service]
+    VS[Vector + RAG]
+    ST[Style engine]
+    Q[Embedding queue]
+  end
+
+  subgraph Local["Your machine"]
+    LLM[(Local LLM weights)]
+    CH[(ChromaDB)]
+    PG[(PostgreSQL)]
+  end
+
+  E --> R
+  P --> R
+  R --> AS
+  AS --> GS
+  AS --> VS
+  AS --> ST
+  AS --> GM --> LLM
+  VS --> CH
+  AS --> Q --> CH
+  AS --> PG
+```
+
+---
+
+## Tech stack
+
+| Layer | Choices |
+|-------|---------|
+| **UI** | Next.js 15, React 19, TypeScript, Tailwind CSS |
+| **Editor** | Tiptap / ProseMirror (tables, code blocks, links) |
+| **API** | FastAPI, Uvicorn, Pydantic |
+| **AI / ML** | PyTorch, Transformers, PEFT, sentence-transformers |
+| **Vectors** | ChromaDB (persistent index; SQLite-backed bookkeeping where configured) |
+| **Data** | SQLAlchemy, PostgreSQL driver (`psycopg`) |
+
+---
+
+## Quick start
+
+### Prerequisites
+
+- **Node.js** 18+ (for the frontend)
+- **Python** 3.10+ with `pip`
+- Optional: **CUDA**-capable GPU for faster local inference
+- Optional: **PostgreSQL** if you use the full persistence path
+
+### Frontend
 
 ```bash
 cd frontend
@@ -15,23 +115,41 @@ npm install
 npm run dev
 ```
 
-Frontend runs on `http://localhost:3000`.
+Open **[http://localhost:3000](http://localhost:3000)** — the home route redirects to the dashboard; use **`/editor`** for the full writing experience.
 
-## Run Backend
+### Backend
 
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate
+
+# Windows
+.\.venv\Scripts\activate
+# macOS / Linux
+# source .venv/bin/activate
+
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-Backend runs on `http://localhost:8000`.
+- API: **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
+- Interactive docs: **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)**  
+  *(The root URL `/` is API-only and may 404—that’s normal.)*
 
-## Environment ΓÇö local LLM (Transformers)
+### Wire the frontend to the API
 
-Point the backend at a directory with Hugging FaceΓÇôformat weights (config.json, tokenizer, safetensors or bin shards). Switch families for string fallbacks when a tokenizer has no `chat_template`.
+```bash
+# frontend/.env.local (example)
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+---
+
+## Configuration
+
+### Local LLM (Transformers)
+
+Point the backend at a directory with Hugging Face–format weights (`config.json`, tokenizer, safetensors or shard files). The family string selects chat-template fallbacks when the tokenizer has no `chat_template`.
 
 ```bash
 # Primary: path to local weights (recommended)
@@ -45,68 +163,66 @@ LOCAL_LLM_MODEL_FAMILY=auto
 
 # Optional LoRA (use the training run's final_adapter directory)
 LOCAL_LLM_ADAPTER_PATH=backend/ai/models/checkpoints/v_<timestamp>_editor-lora/final_adapter
-
-# Multi-model support (optional)
-# Select the active model at runtime via env:
-#   LOCAL_LLM_ACTIVE_MODEL=mistral|llama|mixtral
-#
-# You can also provide model-specific weights/adapters:
-#   LOCAL_LLM_MISTRAL_MODEL_PATH, LOCAL_LLM_MISTRAL_ADAPTER_PATH
-#   LOCAL_LLM_LLAMA_MODEL_PATH,   LOCAL_LLM_LLAMA_ADAPTER_PATH
-#   LOCAL_LLM_MIXTRAL_MODEL_PATH, LOCAL_LLM_MIXTRAL_ADAPTER_PATH
-#
-# If the model-specific vars are not set, the backend falls back to
-# LOCAL_LLM_MODEL_PATH / LOCAL_LLM_ADAPTER_PATH.
-
-LOCAL_LLM_MAX_NEW_TOKENS=256
-
-# Limit concurrent local generations (prevents GPU/CPU overload).
-# Increase cautiously (typically 1 unless you know your hardware headroom).
-LOCAL_LLM_MAX_CONCURRENT_GENERATIONS=1
-
-LOCAL_LLM_TEMPERATURE=0.3
-LOCAL_LLM_TOP_P=0.9
 ```
 
-Optional: richer **offline grammar** checks (in addition to `textstat` + `pyspellchecker`):
+**Multi-model** (optional): set `LOCAL_LLM_ACTIVE_MODEL` to `mistral`, `llama`, or `mixtral`, and optionally override paths per family:
+
+- `LOCAL_LLM_MISTRAL_MODEL_PATH`, `LOCAL_LLM_MISTRAL_ADAPTER_PATH`
+- `LOCAL_LLM_LLAMA_MODEL_PATH`, `LOCAL_LLM_LLAMA_ADAPTER_PATH`
+- `LOCAL_LLM_MIXTRAL_MODEL_PATH`, `LOCAL_LLM_MIXTRAL_ADAPTER_PATH`
+
+If those are unset, the backend falls back to `LOCAL_LLM_MODEL_PATH` / `LOCAL_LLM_ADAPTER_PATH`.
+
+```bash
+LOCAL_LLM_MAX_NEW_TOKENS=256
+LOCAL_LLM_TEMPERATURE=0.3
+LOCAL_LLM_TOP_P=0.9
+
+# Limit concurrent local generations (GPU/CPU safety)
+LOCAL_LLM_MAX_CONCURRENT_GENERATIONS=1
+```
+
+### Richer grammar (optional)
 
 ```bash
 pip install language-tool-python
 ```
 
-On first use, LanguageTool may download its runtime; if it fails, the API still uses rules + spellcheck.
+LanguageTool may download components on first use; if it fails, the API still uses rules + spellcheck.
 
 ### RAG (ChromaDB)
 
-Vector index is stored under `backend/chroma_data` by default (override with `CHROMA_PERSIST_DIR`).
-Optional tuning: `VECTOR_CHUNK_CHARS`, `VECTOR_CHUNK_OVERLAP`, `VECTOR_TOP_K`.
+| Variable | Role |
+|----------|------|
+| `CHROMA_PERSIST_DIR` | Vector store location (default: under `backend/` e.g. `chroma_data`) |
+| `VECTOR_CHUNK_CHARS`, `VECTOR_CHUNK_OVERLAP`, `VECTOR_TOP_K` | Chunking and retrieval tuning |
 
-For scalable background embedding indexing (request batching across documents):
-- `VECTOR_INDEX_BATCH_WINDOW_MS` (default `250`)
-- `VECTOR_INDEX_MAX_BATCH_TASKS` (default `12`)
-- `VECTOR_INDEX_MAX_BATCH_CHUNKS` (default `600`)
+**Background indexing** (batching across documents):
 
-### API
+| Variable | Typical purpose |
+|----------|-----------------|
+| `VECTOR_INDEX_BATCH_WINDOW_MS` | Default `250` — coalesce tasks in a short window |
+| `VECTOR_INDEX_MAX_BATCH_TASKS` | Default `12` |
+| `VECTOR_INDEX_MAX_BATCH_CHUNKS` | Default `600` |
+
+---
+
+## API
 
 | Endpoint | Description |
 |----------|-------------|
-| `POST /ai/analyze` | JSON: suggestions, scores, summary (unchanged) |
-| `POST /ai/chat` | JSON: `reply`, `suggestions` (unchanged) |
-| `POST /ai/chat/stream` | SSE: `data: {"token":"..."}` then `{"done":true}` or `{"error":"..."}` |
+| `POST /ai/analyze` | Document analysis: suggestions, scores, summary, grammar issues, style profile |
+| `POST /ai/chat` | JSON assistant `reply` + `suggestions` |
+| `POST /ai/chat/stream` | SSE: streamed tokens, then `done` or `error` |
+| `WebSocket /ai/chat/ws` | JSON messages: `token`, `suggestions`, `done` / `error` |
 
-Frontend optional env:
+---
 
-```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
-```
+## Fine-tuning & evaluation
 
-## Local LLM fine-tuning (instruction + LoRA)
+Full instruction-tuning docs: **`backend/ai/training/README.md`**.
 
-Pipeline lives in `backend/ai/training/`. See `backend/ai/training/README.md` for details.
-
-### 1) Prepare instruction data
-
-Schema per row: `input_text`, `instruction`, `output_text`, plus `task` and optional `metadata`.
+**Prepare data** (schema: `task`, `input_text`, `instruction`, `output_text`, optional `metadata`):
 
 ```bash
 python backend/ai/training/prepare_dataset.py \
@@ -115,11 +231,9 @@ python backend/ai/training/prepare_dataset.py \
   --max-per-source 3000
 ```
 
-Add your own `.txt` samples under `backend/ai/datasets/user_docs/` when using `user_docs` in `--sources`.
+Add `.txt` samples under `backend/ai/datasets/user_docs/` when using `user_docs`.
 
-### 2) Train (versioned checkpoints)
-
-Each run creates `backend/ai/models/checkpoints/v_<UTC>_<run-name>/` with `checkpoint-*` steps and `final_adapter/`.
+**Train** (versioned runs under `backend/ai/models/checkpoints/`):
 
 ```bash
 python backend/ai/training/train_llm.py \
@@ -130,9 +244,7 @@ python backend/ai/training/train_llm.py \
   --run-name editor-lora
 ```
 
-GPU is used when available; pass `--cpu` to force CPU.
-
-### 3) Evaluate
+**Evaluate** adapter + validation loss / perplexity:
 
 ```bash
 python backend/ai/training/evaluate_model.py \
@@ -141,8 +253,27 @@ python backend/ai/training/evaluate_model.py \
   --val-file backend/ai/datasets/instruction/val.jsonl
 ```
 
-### 4) Run the API with the adapter
+**Benchmarks** (grammar / summarization / rewrite + latency): see `backend/ai/evaluation/`.
 
-Set `LOCAL_LLM_MODEL_PATH` to the base weights and `LOCAL_LLM_ADAPTER_PATH` to that runΓÇÖs `final_adapter` folder.
+---
 
-The backend uses `backend/services/local_llm.py` for suggestions and chat. The legacy `backend/ai/preprocess_data.py` ChatML export is optional; new training expects the instruction JSONL from `prepare_dataset.py`.
+## License
+
+This project’s **source code** is released under the **[MIT License](LICENSE)**.
+
+### Third-party & model weights
+
+- **Dependencies** (Next.js, FastAPI, PyTorch, Transformers, ChromaDB, Tiptap, etc.) are licensed under their respective **open-source terms**—see each package’s `LICENSE` in `node_modules` or your Python environment.
+- **Base model weights** (e.g. LLaMA, Mistral, Mixtral) are **not** included in this repository and remain subject to their **original licenses** from Meta, Mistral AI, or other publishers. You are responsible for **compliance** when you download, fine-tune, or redistribute those weights.
+
+---
+
+<div align="center">
+
+**Built for writers who want AI superpowers without giving up the keys.**
+
+<br />
+
+<sub>README crafted for clarity—tweak the tagline, add your screenshot, and ship.</sub>
+
+</div>
