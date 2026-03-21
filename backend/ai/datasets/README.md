@@ -1,35 +1,35 @@
-# Local LLM Dataset Structure
+# Local LLM datasets
 
-Use this structure to build an instruction-tuning dataset with style adaptation:
+## Instruction tuning (recommended)
 
-- `user_docs/` raw user writing samples (`.txt`)
-- `processed/train.jsonl` generated training records
-- `processed/val.jsonl` generated validation records
+Used by `backend/ai/training/prepare_dataset.py` ΓåÆ `backend/ai/training/train_llm.py`.
 
-## Example
+Layout:
 
 ```text
 backend/ai/datasets/
   user_docs/
     user_001_doc_01.txt
-    user_001_doc_02.txt
-  processed/
+  instruction/          # created by prepare_dataset --output-dir
     train.jsonl
     val.jsonl
+    dataset_manifest.json
 ```
 
-## JSONL record schema
+### JSONL record schema
 
-Each line in `train.jsonl`/`val.jsonl`:
+Each line:
 
 ```json
 {
-  "messages": [
-    {"role": "system", "content": "You are an editing assistant for professional document writing."},
-    {"role": "user", "content": "Rewrite this paragraph for clarity...\n\n<INPUT_TEXT>"},
-    {"role": "assistant", "content": "<TARGET_OUTPUT_TEXT>"}
-  ],
   "task": "rewrite",
-  "metadata": {"source": "backend/ai/datasets/user_docs/user_001_doc_01.txt"}
+  "input_text": "Original passage...",
+  "instruction": "Rewrite for clarity while preserving meaning.",
+  "output_text": "Revised passage...",
+  "metadata": {"source": "hf:paws", "idx": 0}
 }
 ```
+
+## Legacy ChatML export
+
+The older `backend/ai/preprocess_data.py` still emits `messages`-style JSONL under `processed/`. New training expects the **instruction** schema above; re-run `prepare_dataset.py` or convert records before using `training/train_llm.py`.

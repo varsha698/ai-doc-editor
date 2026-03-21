@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Python cache / build artifacts
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Local runtime / editor artifacts
+.cursor/
+.venv/
+backend/chroma_data/
+

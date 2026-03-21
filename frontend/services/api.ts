@@ -14,6 +14,15 @@ export type Suggestion = {
   end?: number;
 };
 
+/** Fast path: rule / spell / optional LanguageTool ΓÇö separate from LLM suggestions */
+export type GrammarIssue = {
+  type: "grammar" | "punctuation" | "spelling" | "clarity";
+  start: number;
+  end: number;
+  suggestion: string;
+  message?: string;
+};
+
 export type AnalysisResponse = {
   suggestions: Suggestion[];
   scores: {
@@ -23,6 +32,13 @@ export type AnalysisResponse = {
     argument_strength: number;
   };
   summary: string;
+  grammar_issues?: GrammarIssue[];
+  style_profile?: {
+    avg_sentence_length: number;
+    vocabulary_usage: { top_terms: string[]; type_token_ratio: number };
+    tone: string;
+    structure: string;
+  };
 };
 
 export async function analyzeText(payload: { document_id: string; text: string }) {
